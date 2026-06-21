@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View, ScrollView, Alert } from 'react-native';
 import { router } from 'expo-router'; // ferramenta de navegacao importada aqui
-import { auth, db } from '../config/firebase.js'; // conexao com o banco
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
+import React, { useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { auth, db } from '../config/firebase.js'; // conexao com o banco
 
 export default function LoginScreen() {
   // declaracao de todas as variaveis do formulario
@@ -22,6 +22,28 @@ export default function LoginScreen() {
   const validarEmail = (inputEmail: string) => {
     const regex = /\S+@\S+\.\S+/;
     return regex.test(inputEmail);
+  };
+
+  // funcao para formatar a data de nascimento para o padrao brasileiro enquanto o usuario digita
+  const formatarData = (texto: string) => {
+    const numeros = texto.replace(/\D/g, '');
+
+    let dataFormatada = numeros;
+
+    if (numeros.length > 2) {
+      dataFormatada = numeros.slice(0, 2) + '/' + numeros.slice(2);
+    }
+
+    if (numeros.length > 4) {
+      dataFormatada =
+        numeros.slice(0, 2) +
+        '/' +
+        numeros.slice(2, 4) +
+        '/' +
+        numeros.slice(4, 8);
+    }
+
+    setDataNascimento(dataFormatada);
   };
 
   // funcao para entrar no sistema
@@ -50,25 +72,25 @@ export default function LoginScreen() {
 
   // funcao para criar conta nova e salvar os dados extras
   const lidarComCadastro = async () => {
-    // 1. verifica se absolutamente todos os campos obrigatorios foram preenchidos
+    //verifica se absolutamente todos os campos obrigatorios foram preenchidos
     if (!email || !senha || !nome || !sobrenome || !dataNascimento || !genero || !numero) {
       Alert.alert('Erro', 'Todos os campos são obrigatórios para criar a conta.');
       return;
     }
 
-    // 2. verifica se o formato do email contem arroba e ponto
+    // verifica se o formato do email contem arroba e ponto
     if (!validarEmail(email)) {
       Alert.alert('Erro', 'Por favor, insira um e-mail em formato válido (exemplo@email.com).');
       return;
     }
 
-    // 3. verifica se a senha atende o minimo de 6 digitos do firebase
-    if (senha.length < 6) {
-      Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres.');
-      return;
-    }
+// verifica se a senha atende o minimo de 6 digitos do firebase
+if (senha.length < 6) {
+  Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres.');
+  return;
+}
 
-    try {
+try {
       // cria a credencial de acesso com email e senha na autenticacao
       const userCredential = await createUserWithEmailAndPassword(auth, email, senha);
       const usuarioId = userCredential.user.uid; // pega o id unico gerado para esse usuario
@@ -114,11 +136,11 @@ export default function LoginScreen() {
           <TextInput style={styles.input} placeholder="Sobrenome *" value={sobrenome} onChangeText={setSobrenome} />
           
           <TextInput 
-            style={styles.input} 
-            placeholder="Data de Nascimento * (DD/MM/AAAA)" 
-            value={dataNascimento} 
-            onChangeText={setDataNascimento} 
-            keyboardType="numeric"
+            style={styles.input}
+            placeholder="Data de Nascimento * (DD/MM/AAAA)"
+            value={dataNascimento}
+            onChangeText={formatarData} 
+            keyboardType="default"
             maxLength={10}
           />
           

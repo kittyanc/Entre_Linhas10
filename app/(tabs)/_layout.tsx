@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Tabs } from 'expo-router';
 import { onAuthStateChanged } from 'firebase/auth';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet } from 'react-native';
 import { auth } from '../../config/firebase.js'; // sobe duas pastas para achar o firebase
-import { ActivityIndicator, View, StyleSheet } from 'react-native';
 
 export default function TabsLayout() {
   const [carregando, setCarregando] = useState(true);
@@ -49,6 +49,31 @@ export default function TabsLayout() {
         options={{
           title: 'Biblioteca',
           tabBarIcon: ({ color }) => <Ionicons name="book" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="perfil"
+        options={{
+          title: 'Perfil',
+          tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="detalhes"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="favoritos"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="comentariosLivro"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

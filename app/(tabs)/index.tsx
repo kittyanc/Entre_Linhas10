@@ -1,19 +1,73 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { auth, db } from '../../config/firebase.js'; // conexao com o firebase do seu projeto
+import { auth, db } from '../../config/firebase.js';
+
+// Componente isolado para o Card do Livro para gerenciar a contagem individual de favoritos
+function CardLivroHome({ item, onSelect }: { item: any; onSelect: (item: any) => void }) {
+  const [totalFavoritos, setTotalFavoritos] = useState<number>(0);
+  const info = item.volumeInfo;
+
+  let capa = info.imageLinks?.thumbnail || 'https://via.placeholder.com/150x220.png?text=Sem+Capa';
+  if (capa.startsWith('http://')) {
+    capa = capa.replace('http://', 'https://');
+  }
+  const autores = info.authors ? info.authors.join(', ') : 'Autor desconhecido';
+
+  // Busca no Firestore quantos usuários favoritaram este ID de livro específico
+  useEffect(() => {
+    const buscarContagemFavoritos = async () => {
+      try {
+        const livroDocRef = doc(db, 'livros', item.id);
+        const livroSnap = await getDoc(livroDocRef);
+        
+        if (livroSnap.exists() && livroSnap.data().usuariosQueFavoritaram) {
+          const listaFavoritos = livroSnap.data().usuariosQueFavoritaram;
+          setTotalFavoritos(Array.isArray(listaFavoritos) ? listaFavoritos.length : 0);
+        } else {
+          setTotalFavoritos(0);
+        }
+      } catch (error) {
+        console.log(`Erro ao buscar favoritos do livro ${item.id}:`, error);
+      }
+    };
+
+    buscarContagemFavoritos();
+  }, [item.id]);
+
+  return (
+    <TouchableOpacity 
+      style={styles.cardLivro}
+      onPress={() => onSelect(item)}
+      activeOpacity={0.7}
+    >
+      <Image source={{ uri: capa }} style={styles.capaLivro} />
+      
+      <View style={styles.infoLivro}>
+        <Text style={styles.tituloLivro} numberOfLines={2}>{info.title}</Text>
+        <Text style={styles.autorLivro} numberOfLines={1}>por {autores}</Text>
+      </View>
+
+      {/* Contador de favoritos posicionado no canto superior direito */}
+      <View style={styles.badgeFavoritos}>
+        <Ionicons name="heart" size={12} color="#a52a2a" />
+        <Text style={styles.textoBadgeFavoritos}>{totalFavoritos}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 export default function HomeScreen() {
+  const router = useRouter(); 
   const [nomeUsuario, setNomeUsuario] = useState('Leitor');
   const [carregandoUsuario, setCarregandoUsuario] = useState(true);
   
-  // variaveis reais para controlar a busca na api publica do google
   const [busca, setBusca] = useState('');
   const [livros, setLivros] = useState<any[]>([]);
   const [buscando, setBuscando] = useState(false);
 
-  // busca o nome do usuario logado no firestore para personalizar o topo
   useEffect(() => {
     const buscarDadosUsuario = async () => {
       const usuarioAtual = auth.currentUser;
@@ -33,7 +87,6 @@ export default function HomeScreen() {
     buscarDadosUsuario();
   }, []);
 
-  // funcao principal conectada com a api do google books
   const buscarLivrosNoGoogle = async () => {
     if (!busca || busca.trim() === '') {
       Alert.alert('Aviso', 'Digite o nome de um livro ou autor.');
@@ -43,31 +96,48 @@ export default function HomeScreen() {
     setBuscando(true);
     try {
       const termoFormatado = busca.trim().toLowerCase();
-      
-      // sua chave inserida para autenticacao no painel do google cloud
       const MINHA_API_KEY = "AIzaSyBvAOP06d-0yrvPMfubfG7eAQxh94Hyvdo"; 
-      
-      // link de requisicao direta para buscar ate 10 volumes na base oficial
       const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(termoFormatado)}&maxResults=10&key=${MINHA_API_KEY}`;
       
       const resposta = await fetch(url);
       const dados = await resposta.json(); 
 
-      // se a api responder com sucesso e trouxer itens guardamos no estado
       if (dados && dados.items && dados.items.length > 0) {
         setLivros(dados.items);
       } else {
-        // se nao vier nada do google limpamos a tela e avisamos o usuario
         setLivros([]);
-        Alert.alert('Informacao', 'Nenhum livro foi encontrado na base do google books.');
+        Alert.alert('Informação', 'Nenhum livro foi encontrado na base do Google Books.');
       }
     } catch (error) {
       console.log("erro na api do google books:", error);
       setLivros([]);
-      Alert.alert('Erro', 'Nao foi possivel conectar ao servidor do google books.');
+      Alert.alert('Erro', 'Não foi possível conectar ao servidor do Google Books.');
     } finally {
       setBuscando(false);
     }
+  };
+
+  const irParaDetalhes = (item: any) => {
+    const info = item.volumeInfo;
+    let capa = info.imageLinks?.thumbnail || 'https://via.placeholder.com/150x220.png?text=Sem+Capa';
+    if (capa.startsWith('http://')) {
+      capa = capa.replace('http://', 'https://');
+    }
+
+    router.push({
+      pathname: "/detalhes", 
+      params: {
+        id: String(item.id), 
+        titulo: String(info.title || 'Sem Título'),
+        autores: String(info.authors ? info.authors.join(', ') : 'Autor desconhecido'),
+        editora: String(info.publisher || 'Não informada'),
+        dataPublicacao: String(info.publishedDate || 'Não informada'),
+        paginas: String(info.pageCount ? info.pageCount.toString() : 'Não informado'),
+        idioma: String(info.language ? info.language.toUpperCase() : 'Não informado'),
+        genero: String(info.categories ? info.categories.join(', ') : 'Não informado'),
+        capaUrl: String(capa)
+      },
+    });
   };
 
   if (carregandoUsuario) {
@@ -79,18 +149,16 @@ export default function HomeScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {/* cabecalho da tela inicial */}
+    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <Text style={styles.saudacao}>Olá, {nomeUsuario}!</Text>
-        <Text style={styles.subsaudacao}>Encontre seu proximo livro no Entre Linhas</Text>
+        <Text style={styles.subsaudacao}>Encontre seu próximo livro no Entre Linhas</Text>
       </View>
 
-      {/* barra de pesquisa estilizada */}
       <View style={styles.containerBusca}>
         <TextInput
           style={styles.inputBusca}
-          placeholder="Buscar por titulo ou autor de verdade..."
+          placeholder="Buscar por título ou autor de verdade..."
           value={busca}
           onChangeText={setBusca}
           onSubmitEditing={buscarLivrosNoGoogle}
@@ -100,45 +168,24 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* container de resultados */}
       <View style={styles.secao}>
         {buscando ? (
           <ActivityIndicator size="large" color="#a52a2a" style={{ marginTop: 20 }} />
         ) : livros.length > 0 ? (
           <>
             <Text style={styles.tituloSecao}>Resultados Encontrados</Text>
-            {livros.map((item) => {
-              const info = item.volumeInfo;
-              let capa = info.imageLinks?.thumbnail || 'https://via.placeholder.com/150x220.png?text=Sem+Capa';
-              
-              // forca o link de imagem a virar https para o celular nao bloquear a foto
-              if (capa.startsWith('http://')) {
-                capa = capa.replace('http://', 'https://');
-              }
-
-              const autores = info.authors ? info.authors.join(', ') : 'Autor desconhecido';
-
-              return (
-                <View key={item.id} style={styles.cardLivro}>
-                  <Image source={{ uri: capa }} style={styles.capaLivro} key={capa} />
-                  <View style={styles.infoLivro}>
-                    <Text style={styles.tituloLivro} numberOfLines={2}>{info.title}</Text>
-                    <Text style={styles.autorLivro} numberOfLines={1}>{autores}</Text>
-                    
-                    <TouchableOpacity style={styles.botaoFavoritarPequeno}>
-                      <Ionicons name="heart-outline" size={16} color="#a52a2a" />
-                      <Text style={styles.textoFavoritarPequeno}>favoritar</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              );
-            })}
+            {livros.map((item) => (
+              <CardLivroHome 
+                key={item.id} 
+                item={item} 
+                onSelect={irParaDetalhes} 
+              />
+            ))}
           </>
         ) : (
-          /* estado inicial limpo antes da primeira pesquisa */
           <View style={styles.cardInfoInicial}>
             <Ionicons name="book-outline" size={40} color="#a52a2a" style={{ marginBottom: 10 }} />
-            <Text style={styles.textoInfoInicial}>Use a barra acima para pesquisar milhoes de livros disponiveis na base do google.</Text>
+            <Text style={styles.textoInfoInicial}>Use a barra acima para pesquisar milhões de livros disponíveis na base do Google.</Text>
           </View>
         )}
       </View>
@@ -211,6 +258,8 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     borderWidth: 1,
     borderColor: 'rgba(165,42,42,0.1)',
+    alignItems: 'center',
+    position: 'relative', // Essencial para podermos fixar o Badge no canto
   },
   capaLivro: {
     width: 70,
@@ -222,6 +271,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 15,
     justifyContent: 'center',
+    paddingRight: 35, // Margem interna para o texto longo não passar por baixo do número
   },
   tituloLivro: {
     fontSize: 16,
@@ -231,24 +281,7 @@ const styles = StyleSheet.create({
   autorLivro: {
     fontSize: 14,
     color: '#a52a2a',
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  botaoFavoritarPequeno: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#a52a2a',
-    borderRadius: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    alignSelf: 'flex-start',
-  },
-  textoFavoritarPequeno: {
-    fontSize: 12,
-    color: '#a52a2a',
-    marginLeft: 5,
-    fontWeight: 'bold',
+    marginTop: 6,
   },
   cardInfoInicial: {
     alignItems: 'center',
@@ -266,5 +299,22 @@ const styles = StyleSheet.create({
     color: '#5d4037',
     fontSize: 14,
     lineHeight: 20,
+  },
+  badgeFavoritos: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(165,42,42,0.08)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  textoBadgeFavoritos: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#a52a2a',
+    marginLeft: 4,
   },
 });
